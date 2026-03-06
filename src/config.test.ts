@@ -2,20 +2,33 @@
 // Copyright (c) 2026 Andrey Limachko <liannnix@giran.cyou>
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { mkdtempSync, writeFileSync, rmSync } from "fs"
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from "fs"
 import { join } from "path"
-import { tmpdir } from "os"
+import { tmpdir, homedir } from "os"
 import { loadConfig } from "./config"
 
 describe("loadConfig", () => {
   let tempDir: string
+  const homeConfigPath = join(homedir(), ".opencode-ntfy.json")
+  let hadHomeConfig = false
+  let originalHomeConfig = ""
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "opencode-ntfy-test-"))
+    hadHomeConfig = existsSync(homeConfigPath)
+    if (hadHomeConfig) {
+      originalHomeConfig = readFileSync(homeConfigPath, "utf-8")
+    }
+    rmSync(homeConfigPath, { force: true })
   })
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true })
+    if (hadHomeConfig) {
+      writeFileSync(homeConfigPath, originalHomeConfig)
+    } else {
+      rmSync(homeConfigPath, { force: true })
+    }
   })
 
   it("returns null when config file does not exist", () => {
@@ -98,5 +111,30 @@ describe("loadConfig", () => {
     const result = loadConfig(tempDir)
     expect(result).not.toBeNull()
     expect(result!.events).toEqual([])
+  })
+
+  it("falls back to ~/.opencode-ntfy.json when project config is missing", () => {
+    writeFileSync(
+      homeConfigPath,
+      JSON.stringify({ topic: "home-topic", server: "https://home.example.com" })
+    )
+
+    const result = loadConfig(tempDir)
+    expect(result).not.toBeNull()
+    expect(result!.topic).toBe("home-topic")
+    expect(result!.server).toBe("https://home.example.com")
+  })
+
+  it("prefers project config over ~/.opencode-ntfy.json", () => {
+    writeFileSync(homeConfigPath, JSON.stringify({ topic: "home-topic" }))
+    writeFileSync(
+      join(tempDir, ".opencode-ntfy.json"),
+      JSON.stringify({ topic: "project-topic", server: "https://project.example.com" })
+    )
+
+    const result = loadConfig(tempDir)
+    expect(result).not.toBeNull()
+    expect(result!.topic).toBe("project-topic")
+    expect(result!.server).toBe("https://project.example.com")
   })
 })

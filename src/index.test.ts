@@ -2,9 +2,9 @@
 // Copyright (c) 2026 Andrey Limachko <liannnix@giran.cyou>
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "bun:test"
-import { mkdtempSync, writeFileSync, rmSync } from "fs"
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from "fs"
 import { join } from "path"
-import { tmpdir } from "os"
+import { tmpdir, homedir } from "os"
 import { plugin } from "./index"
 
 function createPluginInput(directory: string, options?: { childSession?: boolean }) {
@@ -28,14 +28,27 @@ function createPluginInput(directory: string, options?: { childSession?: boolean
 
 describe("plugin", () => {
   let tempDir: string
+  const homeConfigPath = join(homedir(), ".opencode-ntfy.json")
+  let hadHomeConfig = false
+  let originalHomeConfig = ""
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "opencode-ntfy-test-"))
+    hadHomeConfig = existsSync(homeConfigPath)
+    if (hadHomeConfig) {
+      originalHomeConfig = readFileSync(homeConfigPath, "utf-8")
+    }
+    rmSync(homeConfigPath, { force: true })
   })
 
   afterEach(() => {
     rmSync(tempDir, { recursive: true, force: true })
     vi.restoreAllMocks()
+    if (hadHomeConfig) {
+      writeFileSync(homeConfigPath, originalHomeConfig)
+    } else {
+      rmSync(homeConfigPath, { force: true })
+    }
   })
 
   it("returns empty hooks when config file does not exist", async () => {

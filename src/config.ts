@@ -3,6 +3,7 @@
 
 import { readFileSync } from "fs"
 import { join } from "path"
+import { homedir } from "os"
 
 export interface NtfyConfig {
   server: string
@@ -14,13 +15,26 @@ const DEFAULT_SERVER = "https://ntfy.sh"
 const DEFAULT_EVENTS = ["session.idle", "session.error"] as const
 
 export function loadConfig(directory: string): NtfyConfig | null {
-  const configPath = join(directory, ".opencode-ntfy.json")
+  const configPaths = [
+    join(directory, ".opencode-ntfy.json"),
+    join(homedir(), ".opencode-ntfy.json"),
+  ]
 
-  let raw: string
-  try {
-    raw = readFileSync(configPath, "utf-8")
-  } catch {
-    console.warn("[opencode-ntfy] Config file not found:", configPath)
+  let raw: string | null = null
+  let configPath: string | null = null
+
+  for (const candidate of configPaths) {
+    try {
+      raw = readFileSync(candidate, "utf-8")
+      configPath = candidate
+      break
+    } catch {
+      continue
+    }
+  }
+
+  if (!raw || !configPath) {
+    console.warn("[opencode-ntfy] Config file not found in:", configPaths.join(", "))
     return null
   }
 

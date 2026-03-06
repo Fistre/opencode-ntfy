@@ -5,16 +5,28 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.loadConfig = loadConfig;
 const fs_1 = require("fs");
 const path_1 = require("path");
+const os_1 = require("os");
 const DEFAULT_SERVER = "https://ntfy.sh";
 const DEFAULT_EVENTS = ["session.idle", "session.error"];
 function loadConfig(directory) {
-    const configPath = (0, path_1.join)(directory, ".opencode-ntfy.json");
-    let raw;
-    try {
-        raw = (0, fs_1.readFileSync)(configPath, "utf-8");
+    const configPaths = [
+        (0, path_1.join)(directory, ".opencode-ntfy.json"),
+        (0, path_1.join)((0, os_1.homedir)(), ".opencode-ntfy.json"),
+    ];
+    let raw = null;
+    let configPath = null;
+    for (const candidate of configPaths) {
+        try {
+            raw = (0, fs_1.readFileSync)(candidate, "utf-8");
+            configPath = candidate;
+            break;
+        }
+        catch {
+            continue;
+        }
     }
-    catch {
-        console.warn("[opencode-ntfy] Config file not found:", configPath);
+    if (!raw || !configPath) {
+        console.warn("[opencode-ntfy] Config file not found in:", configPaths.join(", "));
         return null;
     }
     let parsed;
