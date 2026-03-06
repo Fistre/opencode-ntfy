@@ -7,6 +7,25 @@ import { join } from "path"
 import { tmpdir } from "os"
 import { plugin } from "./index"
 
+function createPluginInput(directory: string, options?: { childSession?: boolean }) {
+  return {
+    project: { id: "my-project", worktree: "/my-project" },
+    directory,
+    client: {
+      session: {
+        get: vi.fn().mockImplementation(async ({ path }: { path: { id: string } }) => {
+          const sessionID = path.id
+          if (options?.childSession) {
+            return { data: { id: sessionID, parentID: "parent-session" } }
+          }
+          return { data: { id: sessionID } }
+        }),
+        list: vi.fn().mockResolvedValue({ data: [] }),
+      },
+    },
+  }
+}
+
 describe("plugin", () => {
   let tempDir: string
 
@@ -20,7 +39,7 @@ describe("plugin", () => {
   })
 
   it("returns empty hooks when config file does not exist", async () => {
-    const hooks = await plugin({ project: { id: "test", worktree: "/test" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
     expect(hooks).toEqual({})
   })
 
@@ -29,7 +48,7 @@ describe("plugin", () => {
       join(tempDir, ".opencode-ntfy.json"),
       JSON.stringify({ server: "https://custom.example.com" })
     )
-    const hooks = await plugin({ project: { id: "test", worktree: "/test" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
     expect(hooks).toEqual({})
   })
 
@@ -42,7 +61,7 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { id: "my-project", worktree: "/my-project" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
     expect(hooks.event).toBeDefined()
 
     await hooks.event!({
@@ -74,7 +93,7 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { id: "my-project", worktree: "/my-project" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
     expect(hooks.event).toBeDefined()
 
     await hooks.event!({
@@ -106,7 +125,7 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { id: "my-project", worktree: "/my-project" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
 
     await hooks.event!({
       event: {
@@ -127,7 +146,7 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { id: "my-project", worktree: "/my-project" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
 
     await hooks.event!({
       event: {
@@ -148,7 +167,10 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { worktree: "/path/to/project" }, directory: tempDir })
+    const hooks = await plugin({
+      ...createPluginInput(tempDir),
+      project: { worktree: "/path/to/project" },
+    })
 
     await hooks.event!({
       event: {
@@ -174,7 +196,7 @@ describe("plugin", () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true })
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
-    const hooks = await plugin({ project: { id: "my-project", worktree: "/my-project" }, directory: tempDir })
+    const hooks = await plugin(createPluginInput(tempDir))
 
     await hooks.event!({
       event: {
@@ -189,5 +211,26 @@ describe("plugin", () => {
         body: "Project: my-project | Session: unknown",
       })
     )
+  })
+
+  it("skips notification for child session on session.idle", async () => {
+    writeFileSync(
+      join(tempDir, ".opencode-ntfy.json"),
+      JSON.stringify({ topic: "my-topic" })
+    )
+
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const hooks = await plugin(createPluginInput(tempDir, { childSession: true }))
+
+    await hooks.event!({
+      event: {
+        type: "session.idle",
+        properties: { sessionID: "abc123" },
+      },
+    })
+
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
