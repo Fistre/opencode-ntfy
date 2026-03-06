@@ -12,9 +12,36 @@ Add to your `opencode.json`:
 }
 ```
 
+Then install dependencies in your OpenCode workspace (`~/.config/opencode`):
+
+```bash
+bun install --cwd ~/.config/opencode
+```
+
+If your environment does not have Bun, install Bun first (recommended), or use your existing package manager consistently in that workspace.
+
+### Use your own fork (recommended for custom behavior)
+
+If you maintain custom logic (for example, root-session-only idle notifications), pin `opencode-ntfy` to your fork in `~/.config/opencode/package.json`:
+
+```json
+{
+  "dependencies": {
+    "@opencode-ai/plugin": "1.2.20",
+    "opencode-ntfy": "git+https://github.com/<your-user>/opencode-ntfy.git#master"
+  }
+}
+```
+
+Then reinstall:
+
+```bash
+bun install --cwd ~/.config/opencode
+```
+
 ## Configure
 
-Create `.opencode-ntfy.json` in your project root:
+Create `.opencode-ntfy.json` in your OpenCode working directory (the plugin reads from `directory`):
 
 ```json
 {
@@ -22,11 +49,27 @@ Create `.opencode-ntfy.json` in your project root:
 }
 ```
 
+For terminal sessions launched from your home directory, this is usually:
+
+```text
+~/.opencode-ntfy.json
+```
+
 | Field    | Required | Default                              | Description            |
 |----------|----------|--------------------------------------|------------------------|
 | `topic`  | yes      | --                                   | ntfy topic name        |
 | `server` | no       | `https://ntfy.sh`                    | ntfy server URL        |
 | `events` | no       | `["session.idle", "session.error"]`  | events to notify about |
+
+## Root-only idle notifications (main agent only)
+
+This fork resolves session ancestry and sends `session.idle` notifications only for root sessions:
+
+- `session.created` / `session.updated`: cache session parent relationship
+- `session.idle`: resolve root/child via cache, then `session.get`, then `session.list`
+- child session idle events are skipped
+
+If the session cannot be resolved reliably, idle notification is skipped (fail-closed).
 
 ### Self-hosted ntfy
 
@@ -52,6 +95,8 @@ Create `.opencode-ntfy.json` in your project root:
 |-----------------|--------------------------|----------------|
 | `session.idle`  | `opencode: task complete` | 3 (default)    |
 | `session.error` | `opencode: error`        | 4 (high)       |
+
+> `session.idle` is emitted for both root and child sessions in multi-agent runs; this plugin sends only for root sessions.
 
 ## Receiving notifications
 
