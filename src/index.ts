@@ -162,3 +162,5 @@ export const plugin: Plugin = async (input: PluginInput) => {
     },
   }
 }
+
+export default plugin

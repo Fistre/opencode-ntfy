@@ -139,4 +139,5 @@ const plugin = async (input) => {
     };
 };
 exports.plugin = plugin;
+exports.default = exports.plugin;
 //# sourceMappingURL=index.js.map
